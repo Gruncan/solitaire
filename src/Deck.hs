@@ -71,8 +71,32 @@ deckCorrect deck = sort deck == sort deckOf52
 {- Shuffling -}
 
 {- EXERCISE 2: Fisher-Yates Shuffle -}
+
+
+setIndex :: Int -> a -> [a] -> [a]
+setIndex _ _ [] = []
+setIndex 0 v (_:xs) = v : xs
+setIndex i v (x:xs) = x : setIndex (i-1) v xs
+
+swapIndex :: Int -> Int -> [a] -> [a]
+swapIndex i j xs = 
+    let vi = xs !! i
+        vj = xs !! j
+
+    in setIndex j vi (setIndex i vj xs)
+
+
+shuffler :: StdGen -> [a] -> Int -> [a]
+shuffler _ deck 0 = deck
+shuffler rng deck i = 
+    let invertI =  52 - i
+        (j, nextRng) = uniformR (invertI, 51) rng
+        newDeck = swapIndex invertI j deck
+    in shuffler nextRng newDeck (i-1)
+
+
 shuffle :: StdGen -> Deck -> Deck
-shuffle rng deck = error "fill in 'shuffle' in Deck.hs"
+shuffle rng deck = shuffler rng deck 52
 
 {- shuffleDeck is called by Main.hs when setting up -}
 shuffleDeck :: IO Deck
