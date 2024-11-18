@@ -60,7 +60,8 @@ type Deck = [Card]
 
 {- EXERCISE 1: Deck Creation -}
 deckOf52 :: [Card]
-deckOf52 = error "fill in 'deckOf52' in Deck.hs"
+deckOf52 = [mkCard suit value | suit <- [Spades, Clubs, Diamonds, Hearts], 
+                                value <- [Ace .. King]]
 
 {- You can use this to check whether your shuffled deck contains the correct
  - cards -}
