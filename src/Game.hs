@@ -1,6 +1,7 @@
 module Game where
 import Deck
 import Error
+import Data.List (transpose, intercalate)
 
 {- Commands and instructions, representing moves to be made -}
 type StackIndex = Int
@@ -39,7 +40,7 @@ data Pillars = MkPillars {
         hearts :: Maybe Value,
         diamonds :: Maybe Value
   }
-  deriving (Show, Eq)
+  deriving (Eq)
 
 emptyPillars :: Pillars
 emptyPillars = MkPillars {
@@ -59,11 +60,81 @@ data Board = MkBoard {
     deriving (Eq)
 
 
-
 {- EXERCISE 3: Show instance for the board -}
 {- We recommend writing helper functions. -}
+
+deckSizeToString :: [Card] -> String
+deckSizeToString []   = "Deck size: Empty"
+deckSizeToString deck = "Deck size: " ++ show (length deck)
+
+
+listToString :: Show a => [a] -> String
+listToString []     = ""
+listToString [x]    = show x
+listToString (x:xs) = listToString xs ++ ", " ++ show x
+
+
+showCardFlip :: (Card, Bool) -> String
+showCardFlip (c, False) = "???"
+showCardFlip (c, True)  = show c
+
+matrixMaybeToString :: [Maybe (Card, Bool)] -> String
+matrixMaybeToString []            = ""
+matrixMaybeToString (Just x: xs)  = showCardFlip x ++ " " ++ matrixMaybeToString xs
+matrixMaybeToString (Nothing: xs) = "  " ++ matrixMaybeToString xs
+
+discardToString :: [Card] -> String
+discardToString []      = "Discard: Empty"
+discardToString discard = "Discard: " ++ listToString discard
+ 
+
+convertToMatrix :: [[a]] -> [[Maybe a]]
+convertToMatrix [] = []
+convertToMatrix (x:xs) = (reverse (map Just x) ++ padding) : convertToMatrix xs
+    where
+        padding = replicate (13 - length x) Nothing
+
+
+type ColumnMatrix = [[Maybe (Card, Bool)]]
+
+columnToString :: ColumnMatrix -> String
+columnToString [] = ""
+columnToString (x:xs) = matrixMaybeToString x ++ "\n" ++ columnToString xs 
+
+
 instance Show Board where
-    show b = error "fill in 'Show' instance for Board data type in Game.hs"
+    show b = boardString
+        where
+            deckSize = deckSizeToString (boardDeck b)
+            discard = discardToString (boardDiscard b)
+            pillars = show (boardPillars b)
+            columnHeaders = unwords $ map (\x -> "[" ++ show x ++ "]") [0..6]
+            columns = columnToString $ transpose $ convertToMatrix (boardColumns b)
+            boardString = unwords $ map (++ "\n") [deckSize, discard, pillars, "", columnHeaders,
+                                                    columns]
+
+
+-- Since show returns the unicode we need a string of the name
+suitToString :: Suit -> String
+suitToString Spades   = "Spades"
+suitToString Clubs    = "Clubs"
+suitToString Diamonds = "Diamonds"
+suitToString Hearts   = "Hearts"
+
+showPillar :: Suit -> Maybe Value -> String
+showPillar s Nothing = (suitToString s) ++ ": Empty"
+showPillar s (Just v)  = (suitToString s) ++ ":" ++ show (mkCard s v)
+
+
+
+instance Show Pillars where
+    show p = "Pillars:\n  " ++
+             showPillar Spades (spades p) ++ "\n  " ++
+             showPillar Clubs (clubs p) ++ "\n  " ++
+             showPillar Diamonds (diamonds p) ++ "\n  " ++
+             showPillar Hearts (hearts p) ++ "\n  "
+             
+
 
 {- EXERCISE 4: Board Setup -}
 setup :: Deck -> Board
