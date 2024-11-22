@@ -64,8 +64,8 @@ data Board = MkBoard {
 {- We recommend writing helper functions. -}
 
 deckSizeToString :: [Card] -> String
-deckSizeToString []   = "Deck size: Empty"
-deckSizeToString deck = "Deck size: " ++ show (length deck)
+deckSizeToString []   = " Deck size: Empty"
+deckSizeToString deck = " Deck size: " ++ show (length deck)
 
 
 listToString :: Show a => [a] -> String
@@ -75,7 +75,7 @@ listToString (x:xs) = listToString xs ++ ", " ++ show x
 
 
 showCardFlip :: (Card, Bool) -> String
-showCardFlip (c, False) = "???"
+showCardFlip (_, False) = "???"
 showCardFlip (c, True)  = show c
 
 matrixMaybeToString :: [Maybe (Card, Bool)] -> String
@@ -98,8 +98,8 @@ convertToMatrix (x:xs) = (reverse (map Just x) ++ padding) : convertToMatrix xs
 type ColumnMatrix = [[Maybe (Card, Bool)]]
 
 columnToString :: ColumnMatrix -> String
-columnToString [] = ""
-columnToString (x:xs) = matrixMaybeToString x ++ "\n" ++ columnToString xs 
+columnToString [] = " "
+columnToString (x:xs) = matrixMaybeToString x ++ "\n " ++ columnToString xs 
 
 
 instance Show Board where
@@ -137,8 +137,28 @@ instance Show Pillars where
 
 
 {- EXERCISE 4: Board Setup -}
+
+fillColumn :: Deck -> Column
+fillColumn [d]  = [(d, True)]
+fillColumn d    = (head d, False) : fillColumn (tail d)
+
+getColumns :: Deck -> Int -> [Column]
+getColumns _ 0 = []
+getColumns d i = reverse (fillColumn cut) : getColumns remainder (i-1)
+    where
+
+        (cut, remainder) = splitAt i d
+
+deal :: Deck -> (Deck, [Column])
+deal d = (secondHalf, reverse $ getColumns firsthalf 7)
+    where
+        (firsthalf, secondHalf) = splitAt 28 d
+        
+
 setup :: Deck -> Board
-setup d = error "fill in 'setup' in Game.hs"
+setup d = MkBoard {boardDeck=remainder, boardDiscard=[], boardPillars=emptyPillars, boardColumns=dealt}
+    where
+        (remainder, dealt) = deal d
 
 
 
