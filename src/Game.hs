@@ -252,8 +252,39 @@ draw b = case updateBoard (boardDeck b) (boardDiscard b) of
             (deck, discard) -> Right b {boardDeck=deck, boardDiscard=discard}
 
 {- EXERCISE 8: Move -}
+
+countVisableCards :: Column -> Int
+countVisableCards [] = 0
+countVisableCards (x:xs) = (if snd x then 1 else 0) + countVisableCards xs
+
+getColumnFromBoard :: Board -> Int -> Column
+getColumnFromBoard b coli = boardColumns b !! coli
+
+getCardFromBoard :: Board -> Int -> Int -> Card
+getCardFromBoard b coli crdi = fst $ getColumnFromBoard b coli !! crdi
+
+
 move :: Int -> Int -> Int -> Board -> Either Error Board
-move count from to b = error "fill in 'move' in Game.hs"
+move count from to b = case (count, from, to, b) of
+                            _ | count <= 0 -> Left InvalidCount
+                            _ | countOutOfRange -> Left MovingTooManyCards
+                            _ | columnEmpty && columnIsNotKing -> Left ColumnKing
+                            _ | moveable -> Left WrongOrder
+                            _ -> Right b {boardColumns=newColumns} 
+
+                    where -- Lazy evaluation is nice!
+                        fromColumn = getColumnFromBoard b from
+                        toColumn = getColumnFromBoard b to
+                        fromCard = getCardFromBoard b from count
+                        countOutOfRange = count > countVisableCards fromColumn
+                        columnEmpty = countVisableCards toColumn == 0
+                        columnIsNotKing = cardValue fromCard /= King
+                        moveable = canStack fromCard (fst $ head toColumn)
+                        (remainder, toMove) = splitAt count fromColumn 
+                        columns = boardColumns b
+                        newColumns = updateColumn to (toColumn ++ toMove) (updateColumn from remainder columns)
+                        
+
 
 {- EXERCISE 9: Move Stack -}
 moveStack :: Int -> Int -> Board -> Either Error Board
