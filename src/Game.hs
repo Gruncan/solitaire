@@ -81,13 +81,14 @@ showCardFlip (c, True)  = show c
 matrixMaybeToString :: [Maybe (Card, Bool)] -> String
 matrixMaybeToString []            = ""
 matrixMaybeToString (Just x: xs)  = showCardFlip x ++ " " ++ matrixMaybeToString xs
-matrixMaybeToString (Nothing: xs) = "  " ++ matrixMaybeToString xs
+matrixMaybeToString (Nothing: xs) = "    " ++ matrixMaybeToString xs
 
 discardToString :: [Card] -> String
 discardToString []      = "Discard: Empty"
 discardToString discard = "Discard: " ++ listToString discard
  
-
+-- A matrix since we must print by row not column, we just transpose then print!
+-- 13 since that is the max number of rows possible
 convertToMatrix :: [[a]] -> [[Maybe a]]
 convertToMatrix [] = []
 convertToMatrix (x:xs) = (reverse (map Just x) ++ padding) : convertToMatrix xs
