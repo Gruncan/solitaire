@@ -269,7 +269,7 @@ move count from to b = case (count, from, to, b) of
                             _ | count <= 0 -> Left InvalidCount
                             _ | countOutOfRange -> Left MovingTooManyCards
                             _ | columnEmpty && columnIsNotKing -> Left ColumnKing
-                            _ | moveable -> Left WrongOrder
+                            _ | not moveable -> Left WrongOrder
                             _ -> Right b {boardColumns=newColumns} 
 
                     where -- Lazy evaluation is nice!
@@ -288,11 +288,27 @@ move count from to b = case (count, from, to, b) of
 
 {- EXERCISE 9: Move Stack -}
 moveStack :: Int -> Int -> Board -> Either Error Board
-moveStack from to b = error "fill in 'moveStack' in Game.hs"
+moveStack from to b = move count from to b
+                    where
+                        count = countVisableCards (boardColumns b !! from)
 
 {- EXERCISE 10: Move from Discard -}
 moveFromDiscard :: Int -> Board -> Either Error Board
-moveFromDiscard idx b = error "fill in 'moveFromDiscard' in Game.hs"
+moveFromDiscard idx b = case idx of
+                            _ | length (boardDiscard b) == 0 -> Left DiscardEmpty
+                            _ | isColumnEmpty && isCardNotKing -> Left ColumnKing
+                            _ | not moveable -> Left WrongOrder
+                            _ -> Right b {boardDiscard=newDiscard, boardColumns=updatedColumns}
+                    where
+                        cardToMove = head (boardDiscard b)
+                        columnToAdd = getColumnFromBoard b idx
+                        isCardNotKing = cardValue cardToMove /= King
+                        isColumnEmpty = length columnToAdd == 0
+                        moveable = canStack cardToMove (fst $ head columnToAdd)
+                        newDiscard = tail (boardDiscard b)
+                        updatedColumns = updateColumn idx columnToAdd (boardColumns b)
+
+
 
 {- EXERCISE 11: Move to Pillar -} 
 moveToPillar :: CardSource -> Board -> Either Error Board
