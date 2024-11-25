@@ -209,9 +209,16 @@ decPillar ps Diamonds = ps { diamonds = decValue $ diamonds ps }
 
 {- EXERCISE 6: Helper Functions -}
 
+forceTopCardVisable :: Column -> Column
+forceTopCardVisable [] = []
+forceTopCardVisable column = (value, True) : tail column
+    where
+        value = fst $ head column
+
 -- Flips the top card of all columns, if not already flipped
 flipCards :: Board -> Board
-flipCards b = b {boardColumns = [fillColumn (map fst x) | x <- boardColumns b]}
+-- This should be change ;( silly to reverse twice..
+flipCards b = b {boardColumns = map forceTopCardVisable (boardColumns b)}
 
 
 -- Handle the edge case of stacking on top of a king, succ will error
@@ -306,7 +313,7 @@ moveFromDiscard idx b = case idx of
                         isColumnEmpty = length columnToAdd == 0
                         moveable = canStack cardToMove (fst $ head columnToAdd)
                         newDiscard = tail (boardDiscard b)
-                        updatedColumns = updateColumn idx columnToAdd (boardColumns b)
+                        updatedColumns = updateColumn idx ((cardToMove, True) : columnToAdd) (boardColumns b)
 
 
 
