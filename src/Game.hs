@@ -139,15 +139,14 @@ instance Show Pillars where
 
 {- EXERCISE 4: Board Setup -}
 
-fillColumn :: Deck -> Column
-fillColumn [d]  = [(d, True)]
-fillColumn d    = (head d, False) : fillColumn (tail d)
+fillColumn :: [Card] -> Column
+fillColumn [c]  = [(c, True)]
+fillColumn cs   = (head cs, False) : fillColumn (tail cs)
 
 getColumns :: Deck -> Int -> [Column]
 getColumns _ 0 = []
 getColumns d i = reverse (fillColumn cut) : getColumns remainder (i-1)
     where
-
         (cut, remainder) = splitAt i d
 
 deal :: Deck -> (Deck, [Column])
@@ -164,8 +163,16 @@ setup d = MkBoard {boardDeck=remainder, boardDiscard=[], boardPillars=emptyPilla
 
 
 {- EXERCISE 5: Win checking -}
+
+isKingCheck :: Maybe Value -> Bool
+isKingCheck Nothing = False
+isKingCheck (Just v) = v == King
+
+getPillarValues :: Pillars -> [Maybe Value]
+getPillarValues p = [spades p, clubs p, hearts p, diamonds p]
+
 isWon :: Board -> Bool
-isWon b = error "fill in 'isWon' in Game.hs"
+isWon b = all isKingCheck (getPillarValues $ boardPillars b)
 
 {- Pillar helper functions -}
 -- Gets the pillar for a given suit.
@@ -204,19 +211,29 @@ decPillar ps Diamonds = ps { diamonds = decValue $ diamonds ps }
 
 -- Flips the top card of all columns, if not already flipped
 flipCards :: Board -> Board
-flipCards b = error "fill in 'flipCards' in Game.hs"
+flipCards b = b {boardColumns = [fillColumn (map fst x) | x <- boardColumns b]}
+
+
+-- Handle the edge case of stacking on top of a king, succ will error
+canStackValue :: Value -> Value -> Bool
+canStackValue King _ = False
+canStackValue c1 c2 = succ c1 == c2
 
 -- Checks whether it's possible to stack the first card onto the second.
 canStack :: Card -> Card -> Bool
-canStack card onto = error "fill in 'canStack' in Game.hs"
+canStack card onto = isBlack card == isRed onto && canStackValue (cardValue card) (cardValue onto)
 
 -- Updates a column at the given index
 updateColumn :: Int -> Column -> [Column] -> [Column]
-updateColumn n c cs = error "fill in 'updateColumn' in Game.hs"
+updateColumn _ _ [] = [] -- If list is empty then index is out of range, return identical list
+updateColumn 0 c (_:cs) = c : cs
+updateColumn n c (v:cs) = v : updateColumn (n-1) c cs
 
 -- Checks whether it's possible to place a card onto a pillar.
 canStackOnPillar :: Card -> Maybe Value -> Bool
-canStackOnPillar c mv = error "fill in 'canStackOnPillar' in Game.hs"
+canStackOnPillar c Nothing = cardValue c == Ace
+canStackOnPillar c (Just v) = canStackValue v (cardValue c)
+
 
 {- EXERCISE 7: Draw -}
 draw :: Board -> Either Error Board
