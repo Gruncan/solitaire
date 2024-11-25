@@ -236,8 +236,20 @@ canStackOnPillar c (Just v) = canStackValue v (cardValue c)
 
 
 {- EXERCISE 7: Draw -}
+
+updateBoard :: [Card] -> [Card] -> ([Card], [Card])
+updateBoard [] [] = ([], [])
+updateBoard []   discard = (tail flipDiscard, [c])
+                    where 
+                        flipDiscard = reverse discard
+                        c = head flipDiscard
+
+updateBoard (c:deck) discard = (deck, c:discard)
+
 draw :: Board -> Either Error Board
-draw b = error "fill in 'draw' in Game.hs" 
+draw b = case updateBoard (boardDeck b) (boardDiscard b) of
+            ([], []) -> Left DeckEmpty
+            (deck, discard) -> Right b {boardDeck=deck, boardDiscard=discard}
 
 {- EXERCISE 8: Move -}
 move :: Int -> Int -> Int -> Board -> Either Error Board
