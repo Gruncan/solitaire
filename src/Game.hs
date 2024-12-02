@@ -268,15 +268,16 @@ getColumnFromBoard :: Board -> Int -> Column
 getColumnFromBoard b coli = boardColumns b !! coli
 
 getCardFromBoard :: Board -> Int -> Int -> Card
+-- This should be index, error is failing to run move when it is valid We should get the head of the list
 getCardFromBoard b coli crdi = fst $ getColumnFromBoard b coli !! crdi
 
-
+-- TODO fix logic bug with index moving, something is not right..
 move :: Int -> Int -> Int -> Board -> Either Error Board
 move count from to b = case (count, from, to, b) of
                             _ | count <= 0 -> Left InvalidCount
                             _ | countOutOfRange -> Left MovingTooManyCards
                             _ | columnEmpty && columnIsNotKing -> Left ColumnKing
-                            _ | not moveable -> Left WrongOrder
+                            _ | not moveable -> Left WrongOrder -- This is failing..
                             _ -> Right b {boardColumns=newColumns} 
 
                     where -- Lazy evaluation is nice!
@@ -317,10 +318,36 @@ moveFromDiscard idx b = case idx of
 
 
 
-{- EXERCISE 11: Move to Pillar -} 
+{- EXERCISE 11: Move to Pillar -}
+
 moveToPillar :: CardSource -> Board -> Either Error Board
-moveToPillar cs b = error "fill in 'moveToPillar' in Game.hs"
-            
+moveToPillar FromDiscard b = case b of
+                                _ | isDiscardEmpty -> Left DiscardEmpty
+                                _ | not stackable -> Left WrongPillarOrder
+                                _ -> Right b{boardDiscard=newDiscard, boardPillars=newPillars}
+            where
+                isDiscardEmpty = length (boardDiscard b) == 0
+                cardToMove = head (boardDiscard b)
+                suit = cardSuit cardToMove
+                pillar = getPillar (boardPillars b) suit
+                stackable = canStackOnPillar cardToMove pillar
+                newPillars = incPillar (boardPillars b) suit
+                newDiscard = tail (boardDiscard b)
+
+moveToPillar (FromStack i) b = case b of
+                                _ | isColumnEmpty -> Left ColumnEmpty
+                                _ | not stackable -> Left WrongPillarOrder
+                                _ -> Right b{boardColumns=newColumns, boardPillars=newPillars}
+            where
+                column = getColumnFromBoard b i
+                isColumnEmpty = length column == 0
+                cardToMove = head column
+                suit = cardSuit cardToMove
+                stackable = canStackOnPillar cardToMove pillar
+                newPillars = incPillar (boardPillars b) suit
+                newColumns = updateColumn i (tail column) (boardColumns b)
+
+
 {- EXERCISE 12: Move from Pillar -}
 moveFromPillar :: Suit -> Int -> Board -> Either Error Board
 moveFromPillar suit idx b = error "fill in 'moveFromPillar' in Game.hs"
