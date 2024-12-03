@@ -10,6 +10,7 @@ import System.Exit
 import System.Console.ANSI (setSGRCode)
 import System.Console.ANSI.Types
 
+
 type ExceptIO a = ExceptT Error IO a
 
 printErr :: String -> IO ()
@@ -20,11 +21,36 @@ printSuccess :: String -> IO ()
 printSuccess str = putStrLn $ (setSGRCode [SetColor Foreground Dull Green,
                                SetConsoleIntensity BoldIntensity]) ++ str ++ (setSGRCode [])
 
+
+customGetLine :: IO String
+customGetLine = do
+    hSetEcho stdin False          -- Disable echo
+    hSetBuffering stdin NoBuffering -- Disable buffering
+    inputLoop []
+  where
+    inputLoop :: String -> IO String
+    inputLoop xs = do
+        c <- getChar
+        case c of
+            '\DEL' -> -- Handle backspace
+                if null xs
+                    then inputLoop xs  -- Ignore backspace if no characters
+                    else do
+                        putStr "\b \b" -- Move cursor back, erase char, move back
+                        inputLoop (init xs)
+            '\n' -> do -- Handle Enter key
+                putChar '\n'
+                return xs
+            _ -> do
+                putChar c  -- Echo the character
+                inputLoop (xs ++ [c])
+
+
 step :: Board -> [Board] -> ExceptIO (Board, [Board])
 step b prevs = do
     liftIO $ hPutStrLn stdout (show b)
     liftIO $ putStr "Input command >> "
-    str <- liftIO getLine
+    str <- liftIO customGetLine
     instr <- except $ parseInstruction str
     case instr of
         Quit -> liftIO exitSuccess

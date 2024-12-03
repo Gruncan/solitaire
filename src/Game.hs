@@ -2,6 +2,7 @@ module Game where
 import Deck
 import Error
 import Data.List (transpose, intercalate)
+import Data.Maybe
 
 {- Commands and instructions, representing moves to be made -}
 type StackIndex = Int
@@ -88,12 +89,12 @@ discardToString []      = "Discard: Empty"
 discardToString discard = "Discard: " ++ listToString discard
  
 -- A matrix since we must print by row not column, we just transpose then print!
--- 13 since that is the max number of rows possible
+-- 19 since that is the max number of rows possible (13 + 6 hidden)
 convertToMatrix :: [[a]] -> [[Maybe a]]
 convertToMatrix [] = []
 convertToMatrix (x:xs) = (reverse (map Just x) ++ padding) : convertToMatrix xs
     where
-        padding = replicate (13 - length x) Nothing
+        padding = replicate (19 - length x) Nothing
 
 
 type ColumnMatrix = [[Maybe (Card, Bool)]]
@@ -101,6 +102,14 @@ type ColumnMatrix = [[Maybe (Card, Bool)]]
 columnToString :: ColumnMatrix -> String
 columnToString [] = " "
 columnToString (x:xs) = matrixMaybeToString x ++ "\n " ++ columnToString xs 
+
+-- To prevent unnessary white space we reduce the size of the rows that are completely blank
+filterNothingColumns :: ColumnMatrix -> ColumnMatrix
+filterNothingColumns [] = []
+filterNothingColumns (x:xs) = if all (== Nothing) x then 
+                                filterNothingColumns xs
+                            else
+                                x : filterNothingColumns xs
 
 
 instance Show Board where
@@ -110,7 +119,9 @@ instance Show Board where
             discard = discardToString (boardDiscard b)
             pillars = show (boardPillars b)
             columnHeaders = unwords $ map (\x -> "[" ++ show x ++ "]") [0..6]
-            columns = columnToString $ transpose $ convertToMatrix (boardColumns b)
+            -- Columns are vertical but we print horizontal, therefore convert to a 7x13 matrix, transpose, then print
+            -- 13 being the max length of a column 
+            columns = columnToString $ filterNothingColumns $ transpose $ convertToMatrix (boardColumns b)
             boardString = unwords $ map (++ "\n") [deckSize, discard, pillars, "", columnHeaders,
                                                     columns]
 
@@ -230,6 +241,13 @@ canStackValue c1 c2 = succ c1 == c2
 canStack :: Card -> Card -> Bool
 canStack card onto = isBlack card == isRed onto && canStackValue (cardValue card) (cardValue onto)
 
+
+canStackSafe :: Maybe Card -> Maybe Card -> Bool
+canStackSafe _ Nothing = False
+canStackSafe Nothing _ = False
+canStackSafe (Just card) (Just onto) = canStack card onto
+
+
 -- Updates a column at the given index
 updateColumn :: Int -> Column -> [Column] -> [Column]
 updateColumn _ _ [] = [] -- If list is empty then index is out of range, return identical list
@@ -267,30 +285,31 @@ countVisableCards (x:xs) = (if snd x then 1 else 0) + countVisableCards xs
 getColumnFromBoard :: Board -> Int -> Column
 getColumnFromBoard b coli = boardColumns b !! coli
 
-getCardFromBoard :: Board -> Int -> Int -> Card
--- This should be index, error is failing to run move when it is valid We should get the head of the list
-getCardFromBoard b coli crdi = fst $ getColumnFromBoard b coli !! crdi
+
+
+getFirstColumCard :: Column -> Maybe Card
+getFirstColumCard column = if length column == 0 then Nothing else Just (fst $ head column)
 
 -- TODO fix logic bug with index moving, something is not right..
 move :: Int -> Int -> Int -> Board -> Either Error Board
 move count from to b = case (count, from, to, b) of
                             _ | count <= 0 -> Left InvalidCount
                             _ | countOutOfRange -> Left MovingTooManyCards
-                            _ | columnEmpty && columnIsNotKing -> Left ColumnKing
-                            _ | not moveable -> Left WrongOrder -- This is failing..
+                            _ | columnEmpty && not columnIsKing -> Left ColumnKing
+                            _ | not moveable && not columnIsKing -> Left WrongOrder
                             _ -> Right b {boardColumns=newColumns} 
 
                     where -- Lazy evaluation is nice!
                         fromColumn = getColumnFromBoard b from
                         toColumn = getColumnFromBoard b to
-                        fromCard = getCardFromBoard b from count
+                        (fromCards, remFromCards) = splitAt count fromColumn
+                        fromCard = fst $ last fromCards
                         countOutOfRange = count > countVisableCards fromColumn
                         columnEmpty = countVisableCards toColumn == 0
-                        columnIsNotKing = cardValue fromCard /= King
-                        moveable = canStack fromCard (fst $ head toColumn)
-                        (remainder, toMove) = splitAt count fromColumn 
+                        columnIsKing = cardValue fromCard == King
+                        moveable = canStackSafe (Just fromCard) (getFirstColumCard toColumn)
                         columns = boardColumns b
-                        newColumns = updateColumn to (toColumn ++ toMove) (updateColumn from remainder columns)
+                        newColumns = updateColumn to (fromCards ++ toColumn) (updateColumn from remFromCards columns)
                         
 
 
@@ -304,15 +323,15 @@ moveStack from to b = move count from to b
 moveFromDiscard :: Int -> Board -> Either Error Board
 moveFromDiscard idx b = case idx of
                             _ | length (boardDiscard b) == 0 -> Left DiscardEmpty
-                            _ | isColumnEmpty && isCardNotKing -> Left ColumnKing
-                            _ | not moveable -> Left WrongOrder
+                            _ | isColumnEmpty && not isCardKing -> Left ColumnKing
+                            _ | not moveable && not isCardKing-> Left WrongOrder
                             _ -> Right b {boardDiscard=newDiscard, boardColumns=updatedColumns}
                     where
                         cardToMove = head (boardDiscard b)
                         columnToAdd = getColumnFromBoard b idx
-                        isCardNotKing = cardValue cardToMove /= King
+                        isCardKing = cardValue cardToMove == King
                         isColumnEmpty = length columnToAdd == 0
-                        moveable = canStack cardToMove (fst $ head columnToAdd)
+                        moveable = canStackSafe (Just cardToMove) (getFirstColumCard columnToAdd)
                         newDiscard = tail (boardDiscard b)
                         updatedColumns = updateColumn idx ((cardToMove, True) : columnToAdd) (boardColumns b)
 
@@ -341,21 +360,50 @@ moveToPillar (FromStack i) b = case b of
             where
                 column = getColumnFromBoard b i
                 isColumnEmpty = length column == 0
-                cardToMove = head column
+                cardToMove = fst $ head column
                 suit = cardSuit cardToMove
+                pillar = getPillar (boardPillars b) suit
                 stackable = canStackOnPillar cardToMove pillar
                 newPillars = incPillar (boardPillars b) suit
                 newColumns = updateColumn i (tail column) (boardColumns b)
 
 
 {- EXERCISE 12: Move from Pillar -}
+
+makeCardSafe :: Maybe Value -> Suit -> Maybe Card
+makeCardSafe Nothing _ = Nothing
+makeCardSafe (Just v) suit = Just (MkCard suit v)
+
 moveFromPillar :: Suit -> Int -> Board -> Either Error Board
-moveFromPillar suit idx b = error "fill in 'moveFromPillar' in Game.hs"
+moveFromPillar suit idx b = case (idx, b) of
+                            _ | isNothing pillar -> Left PillarEmpty
+                            _ | isColumnEmpty && isCardNotKing -> Left ColumnKing
+                            _ | not moveable -> Left WrongOrder
+                            _ -> Right b{boardColumns=newColumn, boardPillars=newPillars}
+            
+            where
+                column = getColumnFromBoard b idx
+                toCard = getFirstColumCard column
+                pillar = getPillar (boardPillars b) suit
+                pillarCard = makeCardSafe pillar suit
+                isCardNotKing = cardValue (fromJust pillarCard) /= King
+                isColumnEmpty = length column == 0
+                moveable = canStackSafe pillarCard toCard
+
+                newPillars = decPillar (boardPillars b) suit
+                
+                newColumn = updateColumn idx ((fromJust pillarCard, True) : column) (boardColumns b)
 
 {- EXERCISE 13: Solve -}
-solve :: Board -> Board
-solve board = error "fill in 'solve' in Game.hs"
 
+tryToSolve :: Board -> Int -> Board
+tryToSolve b (-1) = b -- Since 0 is an index
+tryToSolve b i = case moveToPillar (FromStack i) b of
+                    Left _ -> tryToSolve b (i-1)
+                    Right newBoard -> tryToSolve newBoard 6
+
+solve :: Board -> Board
+solve board = tryToSolve board 6
 
 
 
