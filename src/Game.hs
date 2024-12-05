@@ -1,7 +1,7 @@
 module Game where
 import Deck
 import Error
-import Data.List (transpose, intercalate)
+import Data.List (transpose)
 import Data.Maybe
 
 {- Commands and instructions, representing moves to be made -}
@@ -118,7 +118,7 @@ instance Show Board where
             deckSize = deckSizeToString (boardDeck b)
             discard = discardToString (boardDiscard b)
             pillars = show (boardPillars b)
-            columnHeaders = unwords $ map (\x -> "[" ++ show x ++ "]") [0..6]
+            columnHeaders = unwords $ map (\x -> "[" ++ show x ++ "]") ([0..6] :: [Int])
             -- Columns are vertical but we print horizontal, therefore convert to a 7x13 matrix, transpose, then print
             -- 13 being the max length of a column 
             columns = columnToString $ filterNothingColumns $ transpose $ convertToMatrix (boardColumns b)
@@ -296,7 +296,7 @@ move count from to b = case (count, from, to, b) of
                             _ | count <= 0 -> Left InvalidCount
                             _ | countOutOfRange -> Left MovingTooManyCards
                             _ | columnEmpty && not columnIsKing -> Left ColumnKing
-                            _ | not moveable && not columnIsKing -> Left WrongOrder
+                            _ | not moveable -> Left WrongOrder
                             _ -> Right b {boardColumns=newColumns} 
 
                     where -- Lazy evaluation is nice!
@@ -307,7 +307,7 @@ move count from to b = case (count, from, to, b) of
                         countOutOfRange = count > countVisableCards fromColumn
                         columnEmpty = countVisableCards toColumn == 0
                         columnIsKing = cardValue fromCard == King
-                        moveable = canStackSafe (Just fromCard) (getFirstColumCard toColumn)
+                        moveable = canStackSafe (Just fromCard) (getFirstColumCard toColumn) || (columnIsKing && columnEmpty)
                         columns = boardColumns b
                         newColumns = updateColumn to (fromCards ++ toColumn) (updateColumn from remFromCards columns)
                         
@@ -324,14 +324,14 @@ moveFromDiscard :: Int -> Board -> Either Error Board
 moveFromDiscard idx b = case idx of
                             _ | length (boardDiscard b) == 0 -> Left DiscardEmpty
                             _ | isColumnEmpty && not isCardKing -> Left ColumnKing
-                            _ | not moveable && not isCardKing-> Left WrongOrder
+                            _ | not moveable -> Left WrongOrder
                             _ -> Right b {boardDiscard=newDiscard, boardColumns=updatedColumns}
                     where
                         cardToMove = head (boardDiscard b)
                         columnToAdd = getColumnFromBoard b idx
                         isCardKing = cardValue cardToMove == King
                         isColumnEmpty = length columnToAdd == 0
-                        moveable = canStackSafe (Just cardToMove) (getFirstColumCard columnToAdd)
+                        moveable = canStackSafe (Just cardToMove) (getFirstColumCard columnToAdd) || (isCardKing && isColumnEmpty)
                         newDiscard = tail (boardDiscard b)
                         updatedColumns = updateColumn idx ((cardToMove, True) : columnToAdd) (boardColumns b)
 
@@ -377,7 +377,7 @@ makeCardSafe (Just v) suit = Just (MkCard suit v)
 moveFromPillar :: Suit -> Int -> Board -> Either Error Board
 moveFromPillar suit idx b = case (idx, b) of
                             _ | isNothing pillar -> Left PillarEmpty
-                            _ | isColumnEmpty && isCardNotKing -> Left ColumnKing
+                            _ | isColumnEmpty && not isCardKing -> Left ColumnKing
                             _ | not moveable -> Left WrongOrder
                             _ -> Right b{boardColumns=newColumn, boardPillars=newPillars}
             
@@ -386,9 +386,9 @@ moveFromPillar suit idx b = case (idx, b) of
                 toCard = getFirstColumCard column
                 pillar = getPillar (boardPillars b) suit
                 pillarCard = makeCardSafe pillar suit
-                isCardNotKing = cardValue (fromJust pillarCard) /= King
+                isCardKing = cardValue (fromJust pillarCard) == King
                 isColumnEmpty = length column == 0
-                moveable = canStackSafe pillarCard toCard
+                moveable = canStackSafe pillarCard toCard || (isCardKing && isColumnEmpty)
 
                 newPillars = decPillar (boardPillars b) suit
                 
